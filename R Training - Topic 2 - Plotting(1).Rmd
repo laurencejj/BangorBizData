@@ -1,0 +1,68 @@
+---
+title: "[R] Training: Beginners to Advanced - Plotting"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Topic 2 - Plotting
+
+There are at least three completely different plotting systems in R. The most commonly used is ggplot, followed by lattice and highcharter. We will spend most time on ggplot as it's the most commonly used.
+Summary: your time is best spent getting to grips with ggplot! We will cover a few types of ggplot visualizations, but for more examples please visit: <https://www.r-graph-gallery.com/ggplot2-package.html>
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=48),tidy=TRUE)
+```
+
+## Example 1: Getting started with ggplot
+
+R has a extensive number of pre-loaded datasets available - run 'data()' to view their names and descriptions. We will use the iris dataset. This famous iris dataset gives the measurements in centimeters of the variables sepal length, sepal width, petal length, and petal width, respectively, for 150 flowers from each of 3 species of iris. The species of iris are; setosa, versicolor, and virginica.
+
+```{r}
+head(iris) # lists the first six rows of data
+names(iris) # lists the column names of the dataset
+class(iris)
+class(iris$Sepal.Length)
+summary(iris)
+# simple plot without ggplot
+?plot # this is a base plotting function, included in the 'graphics' package
+args(plot) # the args function will display the argument names and default values for a function
+plot(x=iris$Sepal.Length,y=iris$Sepal.Width,xlab="Sepal Length",ylab="Sepal Width",main="Scatterplot of Sepal Length versus Width")
+
+library(ggplot2)
+# ggplot allows automatically adding complex aesthetics
+# you can also assign stages of the plot to a variable (object) and build up very powerful plots in stages using geom's
+myPlot <- ggplot(data=iris,aes(x=Sepal.Length,y=Sepal.Width))
+myPlot + geom_point(aes(color=Species,shape=Species)) + xlab("Sepal Length") + ylab("Sepal Width") + ggtitle("Scatterplot of Sepal Length versus Width")
+# there are a large number of ggplot functions and geoms - see the link on the course website
+# a really nice feature is the adding of statistics
+boxPlot <- ggplot(data=iris,aes(x=Species,y=Sepal.Length))
+boxPlot + geom_boxplot(aes(fill=Species)) + ylab("Sepal Length") + ggtitle("Boxplot of Sepal Length by Species") + stat_summary(fun=mean,geom="point", shape=5,size=4)
+# you have total control - remove the legend and flip it sideways
+boxPlot + geom_boxplot(aes(fill=Species)) + ylab("Sepal Length") + ggtitle("Boxplot of Sepal Length by Species") + stat_summary(fun=mean,geom="point", shape=5,size=4) + guides(fill=FALSE) + coord_flip()
+# ggplot is the source of a lot of really cool graphics you see in research papers - it's worth getting to know it well!
+#?ggplot2::geom_boxplot # provides a description of the function, along with a list of arguments to be provided
+```
+
+## Example 2: Density curves, simple smoothers, and faceting
+
+Ggplot can produce every type of graph you are likely to need... boxplots, histograms, bar charts, pie charts, etc, etc. For something a little more interesting, let's look at some simple density plots and time series plots. Remember this is only just scratching the surface - if you can think of it, you can probably find a nice way in R to do it.
+
+```{r}
+# density curve example
+myDensityPlot <- ggplot(data=iris,aes(x=Sepal.Width)) + geom_histogram(binwidth=0.2,color="black",fill="steelblue",aes(y=..density..)) + geom_density(stat="density",alpha=I(0.2),fill="blue") + xlab("Sepal Width") + ylab("Density") + ggtitle("Histogram with Density Curve")
+myDensityPlot
+# or... lets do each species seperately
+ggplot(data=iris,aes(x=Sepal.Width,fill=Species)) + geom_density(stat="density",alpha=I(0.2)) + xlab("Sepal Width") + ylab("Density") + ggtitle("Histogram with Density Curves by Species")
+# simple smoothers
+x <- ggplot(data=iris,aes(x=Sepal.Length,y=Sepal.Width,color=Species)) + geom_point(aes(shape=Species))
+x
+x + geom_smooth(method="lm") # linear model
+x + geom_smooth(method="loess") # local polynomial regression
+# faceting
+ggplot(data=iris,aes(x=Sepal.Length,y=Sepal.Width,color=Species)) + geom_point(aes(shape=Species)) + geom_smooth(method="lm") + facet_grid(.~Species)
+# again, you have control... flip it sideways
+ggplot(data=iris,aes(x=Sepal.Length,y=Sepal.Width,color=Species)) + geom_point(aes(shape=Species)) + geom_smooth(method="lm") + facet_grid(Species~.)
+```
+

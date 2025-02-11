@@ -1,0 +1,256 @@
+---
+title: "[R] Training: Beginners to Advanced - Data Access"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Topic 3 - Data Access
+R provides programmatic access to (probably!) every type of storage format and location available. In this topic, we will look at getting data from a few different kinds of locations, and in a few different kinds of formats.
+
+The sources covered in the following examples are really just the kinds of places you are most likely to want to get data from:
+
+* read and write files on your own machine
+* download structured data from the web
+* download other kinds of data from the web (for example, a table on a website)
+* extract data from the Bloomberg terminals
+* extract data from applications (for example, Twitter)
+
+There are a great variety of other possibilities you probably won't use very often.  Rest assured R can also access them, and there are some links to these kind of examples on the course website.
+This includes data sources like:
+
+* SQL
+* JSON
+* JDBC
+* HDF5
+* Parsing HTML and XML directly
+* Other Apps like Facebook, Dropbox, etc
+
+R also comes with a large number of predefined datasets, which are useful to experiment with.  This is because a quick google search will reveal zillions of examples of how to manipulate, plot, and transform these datasets.  Again, some useful links are given on the course pages.
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=48),tidy=TRUE)
+
+```
+
+## Example 1: Read and write data from your own computer
+R comes with a number of predefined datasets.  We will start by looking at these, then pick one and write it to a file.  We can then read it back.  This process is reasonably pointless right now, but at least we'll know how to read and write data to our own machines!  This will be handy later on, when we will want to save data that we have created, and read it back and process it another time.
+```{r}
+# data() - shows default datasets that are preloaded in R
+
+# let's look at a sample dataframe
+head(iris)
+
+# where is the default directory
+getwd()
+
+# we could save this example data set
+write.csv(iris, file = "IrisDataset.csv") # write to a file
+
+# then reload it
+mydata <- read.csv("IrisDataset.csv") # read it back if the file is located in your working directory
+# alternatively we could specify the entire file path
+# mydata <- read.csv("D:/Documents/IrisDataset.csv")
+
+
+# the following line of code will read it back from a defined location - I've hashed it out as it is user specific
+head(mydata)
+# for fun, let's plot it - with a little ggplot - covered in Topic 2
+library(ggplot2)
+smooth <- ggplot(data=mydata, aes(x=Sepal.Length, y=Sepal.Width, color=Species)) + 
+  geom_point(aes(shape=Species), size=1.5) + xlab("Sepal Length") + ylab("Sepal Width") + 
+  ggtitle("Scatterplot with smoothers")
+# Add a linear model with confidence boundaries
+smooth + geom_smooth(method="lm")
+```
+
+## Example 2: Download structured data from the web
+For this example, we will download data from the Baltimore Open Government site. Many organizations and government sites have an open data initiative, where huge amounts and types of data are exposed. The Open Baltimore website has various different maps we can view, download, and interact with:
+https://data.baltimorecity.gov/search?collection=Dataset&source=baltimore%20city&type=feature%20layer
+You will notice the data on each map can be exported in a number of different formats.  R can deal with all of these formats easily.  For this example, we will download the csv file into your working directory. Then we can read it back in to perform further processing on it.
+
+Examples of different maps include; 
+Red Light Cameras
+https://data.baltimorecity.gov/datasets/red-light-cameras-1/explore?location=39.318750%2C-76.621100%2C13.45
+
+Arrests
+https://data.baltimorecity.gov/datasets/arrests/explore?location=39.285139%2C-76.592673%2C14.12
+
+Restaurants
+https://data.baltimorecity.gov/datasets/baltimore::restaurants/explore?location=39.286100%2C-76.620500%2C12.56
+
+Grocery Store
+https://data.baltimorecity.gov/datasets/grocery-store/explore?location=39.308350%2C-76.622550%2C13.01
+
+```{r}
+# let's download US climate data (less data points to get overwhelmed with)
+# in this example, we set the working directory - where we want the data put... 
+# remember to change it to your own desktop location
+# the double slashes are for windows
+#setwd("C:\User_name\location1\location2\")
+# to find current directory
+# getwd()
+
+# right click the URL for the downloaded file and click 'Copy link address'
+# paste the link address below and assign it as a variable named: fileURL
+fileURL <- "https://www.ncei.noaa.gov/pub/data/cdo/samples/NORMAL_ANN_sample_csv.csv"
+download.file(fileURL,destfile="NORMAL_ANN_sample_csv.csv")
+list.files() # whats in my current working directory?
+ClimateNormals <- read.csv(file = "NORMAL_ANN_sample_csv.csv",header = TRUE)
+head(ClimateNormals)
+```
+
+## Example 3: Download structured data directly into R from the web
+In the above example, the file was downloaded onto your computer, then read into R for processing.
+There is no need to follow that workflow.  If you want, you can read data directly into an R data structure like a data.frame
+This example downloads a table on a website.  Have a look at the ACSI website for Airline satisfaction: http://www.theacsi.org/index.php?option=com_content&view=article&id=147&catid=&Itemid=212&i=Airlines
+In this workflow, we want to read that table directly into R and perform some processing on it.
+```{r}
+library(rvest)
+library(dplyr)
+# Start by reading a HTML page with read_html():
+starwars <- read_html("https://rvest.tidyverse.org/articles/starwars.html")
+
+
+# Then find elements that match a css selector or XPath expression
+# using html_elements(). In this example, each <section> corresponds
+# to a different film
+films = starwars %>% html_elements("section")
+films
+
+# Then use html_element() to extract one element per film. Here
+# we the title is given by the text inside <h2>
+title <- films %>% 
+  html_element("h2") %>% 
+  html_text2()
+title
+
+# Or use html_attr() to get data out of attributes. html_attr() always
+# returns a string so we convert it to an integer using a readr function
+episode <- films %>% 
+  html_element("h2") %>% 
+  html_attr("data-id") %>% 
+  readr::parse_integer()
+episode
+
+## or we can just download a table from a webpage
+html <- read_html("https://en.wikipedia.org/w/index.php?title=The_Lego_Movie&oldid=998422565")
+
+html %>% 
+  html_element(".tracklist") %>% 
+  html_table()
+
+```
+
+## Example 4: Another Web based example
+In this example, we will download financial data from an online source using a package function, rather than reading in the data by web scraping a website such as Yahoo Finance (https://au.finance.yahoo.com/quote/MSFT/history?p=MSFT). 
+```{r}
+library(quantmod)
+getSymbols(Symbols = "MSFT",src = "yahoo",from = "2015-01-01",to = "2019-12-31") # downloads daily prices of Microsoft and store as an xts object named after the entered ticker
+head(MSFT)
+names(MSFT)
+args(chartSeries) # list out all th arguments you can provide this function to customise the output
+chartSeries(x = MSFT,type = "line",show.grid = TRUE) # an example of a chart provided by this package
+```
+
+## Example 6: Extract data from Twitter
+In this example, we will extract user tweets from Twitter for a #hastag that we specify.  A nice way of visualizing this data is as a Wordcloud.
+```{r eval = FALSE}
+library(ROAuth)
+library(twitteR)
+library(tm)
+library(wordcloud)
+library(stringr)
+# The owner of the twitter account needs to give access to r
+# these secret keys are to my twitter account... please don't use them for anything except this demo
+# there is a link on the course page telling you how to create keys for your own accounts
+consumerKey <- 'J8UzuT8xum1unEprNl1k2Ie6W'
+consumerSecret <- 'gjAKBdz3jtlYJuCo1l1wYNY5APu6cIDP1aN929v5bdeBiisHFn'
+accessToken <- '3021731899-98RDq5xC52scWUuYCP8qfKpyqQz2d1C6LY5ygGz'
+accessSecret <- 'nIyCrthCobu7JV7covgdE2EN33shrs64GPtUGh3CW90Iq'
+options(httr_oauth_cache=T)
+setup_twitter_oauth(consumerKey,consumerSecret,accessToken,accessSecret)
+hashtag <- "covid19"
+tweets <- searchTwitter(hashtag,1000) # download the last 1000 tweets about the hashtag
+head(tweets)
+# clean it up a bit - people post all sorts of emoticons and non-english text etc
+tweet.alltext <- lapply(tweets, function(t) t$getText())
+tweet.alltext <- unlist(tweet.alltext)
+tweet.alltext <- str_replace_all(tweet.alltext,'[^[:graph:]]', ' ')
+tweet.alltext <- str_replace_all(tweet.alltext, '[^[:alnum:]]', ' ')
+tweet.tweeter <- lapply(tweets, function(t) t$getScreenName())
+tweet.tweeter <- unlist(tweet.tweeter)
+tweet.alltexts <- tweet.alltext
+head(tweet.tweeter)
+head(tweet.alltexts)
+# remove the http: bit and the search term itself
+tweet.alltexts <- str_replace_all(tweet.alltexts, 'http', ' ')
+tweet.alltexts <- str_replace_all(tweet.alltexts, hashtag, ' ')
+suppressWarnings(wordcloud(tweet.alltexts,min.freq = 2, scale=c(7,0.5),colors=brewer.pal(8, "Dark2"),  random.color= TRUE, random.order = FALSE, max.words = 150))
+```
+
+## Example 7: Creating synthetic stock prices
+Remember while we can obtain data from external sources, we will regularly work with our own data. For an example let's create our own dataset of synthetic stock prices by stating a starting value and implementing a random walk (with an upward bias). We will then plot the time series of prices, and demonstrate how much a dollar investment in each would equal over time. We will further examine this dataset in Topic 4 - Statistics. 
+
+```{r eval = FALSE}
+# create basic dataframe with a range of dates and NA stock prices
+prices <- data.frame(Date = seq(from = as.Date("2019-01-01", "%Y-%m-%d"),to = as.Date("2020-12-31", "%Y-%m-%d"),by = "days"),
+                     X = NA, 
+                     Y = NA, 
+                     Z = NA)
+# specify starting prices
+prices$X[1] <- 52.85
+prices$Y[1] <- 26.73
+prices$Z[1] <- 37.14
+
+# generate future prices based on random changes each day (upward bias)
+for (i in 2:nrow(prices)) {
+  prices$X[i] <- prices$X[i-1] * (1 + runif(n = 1,min = -0.0075,max = 0.0080))
+  prices$Y[i] <- prices$Y[i-1] * (1 + runif(n = 1,min = -0.0085,max = 0.0095))
+  prices$Z[i] <- prices$Z[i-1] * (1 + runif(n = 1,min = -0.0060,max = 0.0062))
+}
+
+# convert dataframe into xts (time-series object)
+library(xts) # Package used to convert dataframes to extensible time-series objects
+pricesXts <- xts(prices[,-1], order.by=prices[,1]) # review how this looks as compared to 'prices'
+
+# plot the synthetic stock prices over time
+library(dygraphs) # Package used for creating interactive HTML graphs
+library(webshot) # Package used to save HTML graphs inside PDF output
+library(htmlwidgets) # Package used to save HTML graphs inside PDF output
+dyPrices <- dygraph(pricesXts,main = "Historical Prices of Synthetic Data",ylab = "Prices") %>%
+  dyOptions(drawXAxis = TRUE,drawYAxis = TRUE) %>%
+  dyRangeSelector(height = 40)
+htmlwidgets::saveWidget(widget = dyPrices, file = "dyPrices.html")
+webshot(url = "dyPrices.html", file = "dyPrices.pdf", delay = 1,zoom = 0.5)
+
+# calculate the daily returns for each synthetic stock
+library(TTR) # Package used for calculating the ROC of security prices
+pricesXts$X_R <- ROC(x = pricesXts$X,n = 1,type = "discrete")
+pricesXts$Y_R <- ROC(x = pricesXts$Y,n = 1,type = "discrete")
+pricesXts$Z_R <- ROC(x = pricesXts$Z,n = 1,type = "discrete")
+
+# calculate the growth of $1 invested in each synthetic stock
+pricesXts[1,4:6] <- 0
+pricesXts$X_Dollar <- pricesXts$X_R +1
+pricesXts$Y_Dollar <- pricesXts$Y_R +1
+pricesXts$Z_Dollar <- pricesXts$Z_R +1
+pricesXts$X_Dollar <- cumprod(pricesXts$X_Dollar)
+pricesXts$Y_Dollar <- cumprod(pricesXts$Y_Dollar)
+pricesXts$Z_Dollar <- cumprod(pricesXts$Z_Dollar)
+
+# plot the cumulative growth of $1 invested in each stock over the sample period
+dollarXts <- pricesXts[,7:9]
+dollarXts$OneDollar <- 1
+dyDollarGrowth <- dygraph(dollarXts,main = "Value of $1 invested",ylab = "Prices") %>%
+  dyOptions(drawXAxis = TRUE,drawYAxis = TRUE) %>%
+  dyRangeSelector(height = 40)
+htmlwidgets::saveWidget(widget = dyDollarGrowth, file = "dyDollarGrowth.html")
+webshot(url = "dyDollarGrowth.html", file = "dyDollarGrowth.pdf", delay = 1,zoom = 0.5)
+
+# save this dataset to work on it again in Topic 4 - Statistics 
+getwd() # where is the default directory
+#setwd("C:\\Users\\dearea\\OneDrive - Bond University\\Bond\\FinTech Hub\\R Training - Beginners to Advanced\\Revised Content\\")
+write.csv(as.data.frame(pricesXts), file = "Synthetic Stock Prices.csv") # write to a file
+```

@@ -1,0 +1,136 @@
+---
+title: "[R] Training: Bangor BizData Club - An Introduction to R"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Topic 1 - Introduction
+
+R and RStudio are free and opensource coding software. Links for how to install both of these pieces of software are provided on the course page. Always download the latest release of the software.
+
+All the packages you will need for this course have also been downloaded onto the machine you are using. If you would like to run these scripts on your own machine, there is an Installation Script which installs all the required packages. Where necessary, there are also links to extra software needed.
+
+RStudio is just an integrated development environment (IDE) for R, so the best way for us to get started is just to start RStudio and have a look...
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=48),tidy=TRUE)
+```
+
+## Example 1: Messing around with R
+
+Firstly, let's just play with it and see how it works!
+
+```{r}
+# R supports all the normal kinds of things you would expect...
+# arithmetic
+3/4
+# sequences
+1:25
+# the results of any calculation can be assigned to a variable
+x <- 1:5
+x
+y <- 6:10
+y
+z <- y-x
+z
+# algebraic manipulation
+t(x)
+# element-wise manipulation
+x * x
+# matrix multiplication
+x %*% x
+# matrix multiplication
+x %*% (x^2)
+# concatenation
+c(x,y)
+```
+
+## Example 2: Data types
+
+R processes different kinds of data differently. Clearly strings are different from numbers... and vectors, and matrices, and dates etc etc. There are lots of data types in R. The most common are numbers, strings, dates, booleans, vectors, matrices and functions. There are many other types of objects for you to use in R, and these won't be covered today, but are easily found using some of the links provided. They tend to be used for more specialized types of analysis.
+
+```{r}
+x <- 1 # a number
+X <- 1.1 # another number... and a reminder that R is case-sensitive (x and X are different)
+x
+X
+y <- 'Cat' # or "Cat"... double or single quotes
+y
+today <- date() # an example date
+today
+z<- c(2000,2001,2002) # a vector holding a sequence
+z
+x==2 # boolean (true or false)
+# most things in R are vectorized... in other words, an operation can be applied to all members at the same time
+z==2001
+z*4
+a <- array(c(1,2,3,4,5,6,7,8,9,10,11,12),dim=c(3,4)) # a simple matrix
+a # matrices can have many dimensions - this one is two dimensional
+# you can create a function on the fly - as simple or as complex as you require
+addTwoNumbersTogether <- function(x,y) {x+y}
+addTwoNumbersTogether(5,11)
+```
+
+## Example 3: Functions
+
+You can create functions on the fly - as simple or as complex as you require! However, chances are someone else has already made it.
+
+```{r}
+# lets create a function to add two numbers together
+addTwoNumbersTogether <- function(x,y) {x+y}
+addTwoNumbersTogether(5,11)
+
+# we are most likely not the first person to think of this... an existing function already exists in base R
+sum(5,11)
+
+# lets create a function that returns how much change offered from placing an order at a bakery
+# there isn't a base R function for this, for good reason!
+# define prices of menu items
+Pie <- 7.80
+SausageRoll <- 3.70
+Lamington <- 3.50
+CustardTart <- 4.80
+Muffin <- 4.00
+Coffee <- 4.60
+SoftDrink <- 3.90
+ChocolateMilk <- 5.80
+
+# create the function
+calculateChangeFromBakeryOrder <- function(amountPaid,orderedItemsVector) {
+  orderValue <- sum(orderedItemsVector)
+  amountPaid-orderValue }
+
+# test it out!
+calculateChangeFromBakeryOrder(20,Pie)
+calculateChangeFromBakeryOrder(20,c(Pie,CustardTart,Coffee))
+calculateChangeFromBakeryOrder(20,c(Pie,CustardTart,Coffee,SausageRoll))
+
+# let's make some changes...
+calculateChangeFromBakeryOrder_Advanced <- function(amountPaid,orderedItemsVector) {
+  orderValue <- sum(orderedItemsVector)
+  ifelse(test = amountPaid-orderValue>0,
+         yes = paste("Here is your change:", amountPaid-orderValue,sep = " $"),
+         no = paste("You still need:", abs(amountPaid-orderValue),sep = " $")) }
+
+# much better!
+calculateChangeFromBakeryOrder_Advanced(20,Pie)
+calculateChangeFromBakeryOrder_Advanced(20,c(Pie,CustardTart,Coffee))
+calculateChangeFromBakeryOrder_Advanced(20,c(Pie,CustardTart,Coffee,SausageRoll))
+```
+
+## Example 4: Packages
+
+You don't have to do everything yourself in R. Most existing quantitative techniques are already implemented, and often new research comes out with an R package. During the rest of this course we will use a few R packages - for plotting, statistics, etc. You can see what packages are already loaded, and install new ones as you see fit, and write your own for distributing to others.
+
+```{r}
+ls() # what's in my environment
+head(installed.packages()) # this will list the first six packages you have installed on your machine
+# this could also be achieved by clicking the Packages Tab on the lower-right corner of Rstudio
+list.of.packages = c("ggplot2") # this will install the package 'ggplot2' from CRAN by default
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages, repos = "http://cran.us.r-project.org")
+library(ggplot2) # this will activate the 'ggplot2' package that will be used in Topic 2
+#?ggplot2 # this will load the description of the 'ggplot2' package in the Help Tab in the lower-right corner of Rstudio
+```

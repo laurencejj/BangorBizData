@@ -1,0 +1,44 @@
+---
+title: "[R] Training: Beginners to Advanced - Statistics"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Topic 4 - Statistics
+This topic covers a basic introduction to statistics in R.  There are some very comprehensive statistical packages available depending on your needs.  Some links to these are provided in the notes.
+
+```{r, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=48),tidy=TRUE)
+```
+
+## Example 1: Calculation of descriptive statistics
+We will use the trees datyaset that comes with R. Descriptive statistics just provide a quick overview of the data.
+```{r}
+data(trees)
+head(trees)
+summary(trees)
+mean(trees$Girth)
+mean(trees$Height)
+sd(trees$Girth)
+median(trees$Girth)
+library(lattice)
+histogram(trees$Girth)
+plot(x=trees$Girth,y=trees$Volume)  # looks like some kind of relationship here...data
+cor(trees$Girth,trees$Volume)
+```
+
+
+## Example 3: Linear Regression
+From the plot above, it looks like there could be a linear relationship between Girth and Volume.  Lets find out.
+```{r}
+# lets draw it up with ggplot
+library(ggplot2)
+ggplot(data=trees,aes(x=Girth,y=Volume)) + geom_point() + geom_smooth(method="lm") + ggtitle("Volume and Girth relationship") 
+
+myTreeRegression <- lm(data = trees, formula = Volume ~ Girth)
+myTreeRegression
+summary(myTreeRegression)
+```
+

@@ -1,0 +1,564 @@
+---
+title: '[R] Training: Beginners to Advanced - OLS Regression'
+author: "GK"
+output: pdf_document
+---
+# Topic 6 - OLS Regression
+(Note that the entire Section is based on the course taught by G. Rodriguez of Princeton University)
+
+In Topic 4, we were first introduced to the linear model. The linear model equation takes the form
+
+$$Y=\alpha + \beta X + \epsilon_i$$
+
+where ,
+$$\epsilon_i \sim N(0,\sigma^2)$$
+
+Some important properties of the error terms are:
+
+* Mean = 0
+* Constant Variance
+* errors are i.i.d (i.e., no serial autocorrelation)
+
+If these properties are not satisfied then obviously the fitted model is not correct!
+
+## Section 6.1 - The Program Effort Data
+
+Let us have a look at the Program Effort Data 
+
+```{r}
+fpe <- read.table("http://data.princeton.edu/wws509/datasets/effort.dat")
+fpe
+```
+This is a small dataset extracted from Mauldin and Berelson (1978).The data include an index of social setting, an index of family planning effort, and the percent decline in the crude birth rate (CBR) - the number of births per thousand population between 1965 and 1975, for 20 countries in Latin America and the Caribbean.
+
+The index of social setting combines seven social indicators, namely literacy, school enrollment, life expectancy, infant mortality, percent of males aged 15-64 in the non-agricultural labor force, gross national product per capita and percent of population living in urban areas. Higher scores represent higher socio-economic levels.
+
+The index of family planning combines 15 different program indicators, including such aspects as the existence of an official family planning policy, the availability of contraceptive methods, and the structure of the family planning program. An index of 0 denotes the absence of a program, 1-9 indicates a weak effort, 10-19 a moderate effort and 20+ denotes fairly strong programs.
+
+The following figure shows the scatterplot of all pairs of variables.
+```{r}
+pairs(fpe[,c("change","setting","effort")])
+```
+
+Note that CBR decline is positively associated with both social setting and family planning effort. Note also that countries with higher socio-economic levels tend to have stronger family planning programs.
+
+In our analysis of these data we will treat the percent decline in the CBR as a continuous response and the indices of social setting and family planning effort as predictors. In a first approach to the data we will treat the predictors as continuous covariates with linear effects. Later we will group them into categories and treat them as discrete factors.
+
+## Section 6.2 - Simple Linear Regression
+
+Let us start with the simplest possible model, the null model, which fits just a constant
+
+```{r}
+model1 <- lm(change~1, data=fpe)
+model1
+summary (model1)
+```
+
+The first argument to the lm() function is a model formula, which defines the response, followed by a tilde and a list of terms. In this case the only term is 1, representing the constant. The data argument specifies the data frame to be used. This can be omitted if the data are attached.
+
+The function returns an "lm" (or linear model) object. As you can see, its print method simply lists the formula and the estimated coefficients. Here we see that the average fertility decline in these countries between 1965 and 1975 was 14.3%. To obtain more information we need to use the summary() function. In the summary() function, we now get standard errors and a t-test of significance. If you want a confidence interval as well you need to call the function confint().
+
+The next step is to try a linear regression of change on setting:
+
+```{r}
+attach(fpe)
+ model2 <- lm(change ~ setting)
+```
+
+The first line attaches the data frame, so we don't need to specify it every time. The model formula on the next line specifies a linear regression on setting. We don't need to specify an intercept because this is always included by default, unless removed using -1 We were explicit last time because the constant was the only term. The term on setting is linear because R recognizes it as a continuous variable. 
+```{r}
+summary(model2)
+```
+Each point in the social setting scale is associated with a fertility decline of half a percent.
+We can also obtain the analysis of variance using the anova() function
+```{r}
+anova(model2)
+```
+The total sum of squares of 2650.2 has been decomposed into 1201.1 that can be attributed to social setting and 1449.1 that remains unexplained.
+
+Let us calculate R-squared "by hand" as the proportion of variance explained as we introduce setting. There are a number of functions that can be used to access elements of a linear model, for example coef() returns the coefficients, fitted() returns the fitted values, and resid() returns the residuals, or differences between observed and fitted values. We will add our own function to compute the residual sum of squares:
+
+```{r}
+rss <- function(lmfit) {
+  sum(residuals(lmfit)^2)
+  }
+
+1 - rss(model2)/rss(model1)
+```
+Almost half the variation in fertility decline can be expressed as a linear effect of social setting.
+
+### Section 6.2.1 - Plotting Observed and Fitted Values
+
+We want to plot fertility change versus setting labelling the points with the country names and superimposing the regression line. We use R's plot() function to draw a scatterplot of change by setting. (Note that the first argument is the x-axis and the second the y-axis.) To superimpose a regression line we use the function abline(), which takes as argument an intercept and a slope, which is exactly what coef() returns in this case.
+
+We can add the country names using the text() function, but here things get interesting because we get some overprinting. To solve this problem we specify the position of the labels using the values 1 to 4 for below, left, above and right. We'll put everyone on the right, but move Costa Rica and Trinidad Tobago to the left. In addition, we'll use a small adjustment to move the labels a bit up for Costa Rica and down for Trinidad Tobago. We also set cex=0.75 to reduce the size of the labels by 25%. The final touch is to provide a bit more room for the text labels on the plot, using xlim to specify the range of the x-axis as 35 to 100.
+
+```{r}
+plot(setting,change,xlim=c(35,100), xlab="Setting", ylab="Change", main="Fertility Change by Social Setting")
+abline(coef(model2))
+adj <- data.frame( pos=rep(4,nrow(fpe)), jit=0, row.names=row.names(fpe))
+adj[c("CostaRica","TrinidadTobago"),"pos"] <- 2
+adj[c("CostaRica","TrinidadTobago"),"jit"] <- c(1,-1)
+text(setting, change+adj$jit, row.names(fpe), pos=adj$pos, cex=0.75)
+```
+
+This example also illustrates the use of character subscripts in R. We already used variable names as column subscripts, and not surprinsigly, we can also use row names as row subscripts. This let us write code such as fpe["CostaRica",], which is clearer than fpe[5,], and will still work if the data frame has been reordered. That's why the adjustments in a data frame were put and gave it the same row names as fpe.
+
+## Section 6.3 - Multiple Linear Regression
+
+Let us try a multiple regression model with linear and additive effects of social setting and program effort, using a plus sign to add terms to a model formula:
+
+```{r}
+model3 <- lm(change ~ setting + effort)
+summary(model3)
+```
+
+The estimates suggest that fertility decline increases with social setting, about a quarter of a percentage point per point of setting, when we compare countries with the same effort. Similarly, fertility declines about one percentage point more per point of program effort, when we compare countries with the same social setting.
+
+It is important to keep in mind that both conclusions are based on the model, which assumes linearity and additivity. In fact we can't really compare countries which differ exactly by one point in effort and have the same setting, so goodness of fit will be a central concern. 
+
+The hierarchical anova table for this data is:
+```{r}
+anova(model3)
+```
+The F-test for a linear effect of effort after taking into account setting is 18.5 on 1 and 17 d.f., and is the same as the square of the t-statistic of 4.3 on 17 d.f.
+
+
+
+## Section 6.4 - One-way Analysis of Variance
+
+We now consider models where the predictors are categorical variables or factors with a discrete number of levels. To illustrate the use of these models we will group the index of social setting (and later the index of family planning effort) into discrete categories.
+
+Let us group social setting into three categories: < 70, 70-79 and 80+.
+
+The easiest way to do this is using the function cut(), which takes as arguments the original variable and a set of cutpoints or "breaks", here the minimum (23), 70, 80, and the maximum (91). By default the cutpoint itself is included in the lower category so the intervals are closed on the right, as in (70,80], but we want the opposite, as in [70,80), so we specify right=FALSE. To make sure we include the highest cutpoint in the last category we specify include.lowest=TRUE. (This option can be confusing; by default it will include the lowest cutpoint in the first category as the name suggests, but having specified that right is false it will actually include the highest cutpoint in the last category.)
+
+R generates labels for the categories, and you should probably accept them at first to ensure that the grouping was done as intended, but we'll call the categories "low", medium", and "high", for consistency with the notes. We could add this variable to the data frame, but we will not bother for now.
+
+```{r}
+setting.g <- cut(setting, 
+  breaks=c(min(setting),70,80,max(setting)),
+  right=FALSE,include.lowest=TRUE, 
+  labels=c("Low","Medium","High"))
+```
+
+To verify the grouping we need to split the data by categories of social setting and compute the range of setting in each group. In R this can be done in many ways. We'll use tapply() to compute the minimum and maximum for each category and then bind the results into a data frame. (For a general discussion of the split-apply-combine approach to data processing in R you may want to learn about the plyr package, or its succesor dplyr.)
+
+```{r}
+data.frame(min = tapply(setting, setting.g, min),
+      max = tapply(setting, setting.g, max))
+```
+
+We see that the ranges included in each category are 35-68, 70-77 and 83-91, so obviously the cut was correct. We can use the same approach to compute the average fertility decline in each category of social setting:
+
+```{r}
+tapply(change, setting.g, mean)
+```
+
+We observe substantially more fertility decline in countries with high setting, but only a small difference between the low and medium categories.
+
+### Section 6.4.1 - A One Factor Model
+
+To fit a linear model treating social setting as a factor we simply use the categorical variable in the model formula:
+
+
+```{r}
+model2g <- lm(change ~ setting.g)
+summary(model2g)
+```
+
+Note - R will automatically create dummy variables for each category other than the first. You can verify that the constant is the average decline in low setting countries, and the coefficients for medium and high are the differences between medium and low and between high and low; in other words, differences with respect to the omitted category.
+
+
+#### Section 6.4.1.1 - Aside: Dummy Variables
+
+We could, of course, compute the dummy variables "by hand", with the same results. Below I use as.numeric to coerce a logical expression to take the values 1 and 0, otherwise the coefficients would have names like settingMediumTRUE.
+
+```{r}
+settingMedium <- as.numeric(setting.g == "Medium")
+settingHigh   <- as.numeric(setting.g == "High")
+lm(change ~ settingMedium + settingHigh)
+```
+
+Using the factor notation is not only simpler but tells R that the terms belong together.
+
+
+
+The t-statistics produced by summary compare each category to the reference cell. To obtain an overall test of the significance of social setting we need to compare the models with and without setting. This can be done using the anova() function:
+
+```{r}
+anova(model2g)
+```
+
+The F-test of 6.97 on 2 and 17 d.f. tells us that the differences between the social setting categories are much larger than one would expect by chance if all experienced the same decline in fertility.
+
+It may be instructive to calculate the text "by hand" using the residual sum of squares for the null model and the model treating setting as a factor:
+
+```{r}
+((rss(model1)-rss(model2g))/2)/(rss(model2g)/df.residual(model2g))
+```
+We obtain the same 6.97 on 2 and 17 d.f.
+
+
+
+## Section 6.5 - Two-way Analysis of Variance
+
+We now consider models involving two factors with discrete levels. We illustrate using the sample data with both social setting and family planning effort grouped into categories. Key issues involve the concepts of main effects and interactions.
+
+We now generate CBR decline in our 20 countries classified according two criteria: social setting, with categories low (<70), medium (70-79) and high (80+); and family planning effort, with categories weak (0-4), moderate (5-14) and strong(15+). Hence, both setting and effort are factors with three levels.
+
+We have already divided setting, we will now need to divide effort into its categories.
+
+```{r}
+effort.g <- cut(effort, 
+  breaks=c(min(effort),5,15,max(effort)), 
+  right=FALSE, include.lowest=TRUE, 
+  labels=c("Weak","Moderate","Strong"))
+```
+
+Next we fit an additive model and summarize the results:
+
+```{r}
+model3g<-lm(change ~ setting.g + effort.g)
+
+summary(model3g)
+```
+
+Countries with strong family planning programs show steeper declines than countries with weak programs at the same level of social setting, on average 21 percentage points more.
+
+This statement is based on the assumption of additivity, namely that the difference in outcomes across categories of program effort is the same at every level of setting. We will test this assumption later.
+
+Calling the anova() function produces the hierarchical analysis of variance:
+
+```{r}
+anova(model3g)
+```
+
+As you can see the differences by level of effort among countries with the same level of setting are significant, with an F-ratio of 11.5 on 2 and 15 d.f.
+
+Let us now examine the fitted means by categories of setting and effort. fitted() extracts the fitted values and tapply() produces a table of means.
+
+```{r}
+fv <- fitted(model3g)
+tfv <- tapply(fv,list(setting.g, effort.g),mean)
+tfv
+```
+
+The NA value on the top right cell is due to the fact that there are no countries with strong effort in low settings. However, we can still make a prediction for that cell (Such extrapolation relies on the additive nature of the model and should be interpreted with caution):
+
+```{r}
+tfv[1,3] <- coef(model3g) %*% c(1,0,0,0,1)
+tfv
+```
+
+we use coef() to extract the coefficients and we multiply them by a vector representing the cell of interest. Because the model is additive the difference between any two columns is the same for every row.
+
+
+### Section 6.5.1 - A two-factor interaction
+
+Let us now consider a model with an interaction between social setting and program effort, so differences in fertility decline by effort will vary by setting. In a model formula we can include the interaction between two factor using the colon operator. We can also use a star (or asterisk) to include the main effects and interactions. Thus, for factor A and B, the model A*B is exactly the same as A + B + A:B.
+
+```{r}
+model4g <- lm(change~setting.g * effort.g)
+summary(model4g)
+```
+
+With 3 categories of effort and 3 for setting one would have expected nine parameters, but we only obtain 8 because, as noted earlier, we have an empty cell. R automatically drops one of the interaction terms. Fortunately this doesn't affect testing. We can obtain a join test of significance for the 3 parameters representing the interaction using anova:
+
+```{r}
+anova(model4g)
+```
+
+The F-statistic for the interaction term is 0.99 on 3 and 12 d.f., which is clearly not significant. We have no evidence that the differences by effort vary according to social setting.
+
+This makes the issue of interpreting parameters moot, but it may be worth noting briefly the problems caused by the empty cell. As things stand, the coefficient of moderate effort compares moderate with weak at low setting, but the coefficient of strong effort compares strong with weak at high setting. (When the term for high and strong is dropped, the only difference between weak and strong programs at high setting is the coefficient of strong.)
+
+The parametrization best for this problem combines the main effects of effort with the interactions, so we obtain differences between strong and weak, and between moderate and weak programs, at each level of setting. This allows us to omit the difference between strong and weak programs at low setting, which is the one we can't identify. We will not pursue this tack at this point, but will return to the idea when we have to interpret a significant interaction. If you are curious try the model formula change ~ setting.g + effort.g:setting.g, which achieves the desired result by including the interaction but omitting the main effect of effort.
+
+
+
+
+## Section 6.6 - Analysis of Covariance Models
+
+We now consider models that combine continuous and categorical predictors, traditionally called "ancova" models. We illustrate them by treating social setting as a continuous covariate with a linear effect and program effort as a discrete factor with three levels: low, medium and strong:
+
+```{r}
+model3cg <- lm(change ~ setting + effort.g, data=fpe)
+summary(model3cg)
+```
+
+Note, the data parameter is included, even though the data are attached, because that ensures propagation of row names when we use extractor functions, and will be convenient when we consider diagnostics.
+
+Countries with strong programs show steeper fertility declines, on average 19 percentage points more, than countries with weak programs and the same social setting.
+
+To test significance of the net effect of effort we call the anova() function:
+
+```{r}
+anova(model3cg)
+```
+
+We obtain an F-ratio of 14.1 on 2 and 16 d.f.
+
+This analysis has adjusted for linear effects of setting, whereas the analysis of Section 6.5 adjusted for the effects of setting grouped in three categories. As it happens, both analyses lead to similar estimates of the difference between strong and weak programs at the same level of setting.
+
+
+### Section 6.6.1 - Plotting Observed and Fitted
+
+We will create a plot of change versus setting identifying the level of program effort corresponding to each point. We will also superimpose the three parallel lines corresponding to the fitted model.
+
+This is easily done using plot() for the data and text() for the labels. We could use abline() for the fitted lines, but we will plot the actual fitted values instead, so we restrict the lines to the values of setting where we actually have data for each level of effort
+
+```{r}
+xy <- cbind(setting, fitted(model3cg))
+plot(setting, change, xlim=c(35,100), xlab="Setting", ylab="Change", main="Analysis of Covariance Model")
+text(setting, change, labels=substr(effort.g,1,1), pos=4, cex=0.75)
+lines(xy[effort.g=="Weak",])
+lines(xy[effort.g=="Moderate",])
+lines(xy[effort.g=="Strong",])
+```
+
+### Section 6.6.2 - Adjusted and Unadjusted Means
+
+comparison of adjusted and unadjusted declines is a useful way to present regression results to a non-technical audience.
+
+To obtain adjusted estimates we predict fertility change for each country using its observed level of effort, but with social setting set to the sample mean, which happens to be 72.1. One way to do this is to obtain the model matrix, available through the extractor function model.matrix, change the setting column to the mean, and then multiply by the coefficients using %*% to denote matrix multiplication
+
+```{r}
+X <- model.matrix(model3cg)
+X[,2] <- mean(setting)
+adj <- X %*%coef(model3cg)
+```
+
+The next step is to compute observed and adjusted means for each category of effort, which we can do with tapply(). We bind the result using data.frame to get column names:
+
+```{r}
+data.frame(obs = tapply(change,effort.g, mean), adj = tapply(adj,   effort.g, mean))
+```
+
+Countries with strong programs average a 28% decline in fertility, but they also tend to have higher settings; we estimate a slightly smaller decline of about 26% at average social setting. The estimate is based on the model, which adjusts linearly for setting and assumes that the slope is the same at all levels of effort. The next step will be to examine this assumption.
+
+The generic function predict() can calculate predictions for various models. One of the arguments taken by this function is a new dataset to use in the predictions. All we need is a three-row dataset, with setting set to 72.1 and effort set to Weak, Moderate, and Strong. The results are exactly the same as above.
+
+```{r}
+pds<-data.frame( setting=rep(mean(setting),3),
+  effort.g=levels(effort.g))
+
+pds
+
+predict(model3cg,newdata=pds)
+```
+
+
+### Section 6.6.2 - The Assumption of Parellism
+
+We will now allow the linear relationship between change and setting to vary with level of effort, by introducing an interaction between setting and the indicators of effort. Before we do that we center the index of social setting by subtracting the mean, a practice that is highly recommend to simplify the interpretation of so-called "main"" effects when the model has interactions:
+
+```{r}
+setting.c <- setting - mean(setting)
+model4cg <- lm(change ~ setting.c * effort.g)
+summary(model4cg)
+```
+
+
+Because we centered setting, the coefficients for moderate and strong programs summarize differences by effort at mean setting, rather than at setting zero (which is well outside the range of the data). Thus, fertility decline averages 13 percentage points more under strong than under weak programs in countries with average social setting.
+
+The interaction terms can be used to compute how these differences vary as we move away from the mean. For example in countries which are ten points above the mean social setting, the strong versus weak difference is almost five percentage points more than at the mean.
+
+These differences, however, are not significant, as we verify using the anova() function
+
+```{r}
+anova(model4cg)
+```
+
+The F-ratio for the interaction is 0.4 on 2 and 14 d.f., so we have no evidence that the three slopes are not all the same.
+
+
+
+## Section 6.7 - Regression Diagnostics
+
+The process of statistical modeling involves three distinct stages: formulating a model, fitting the model to data, and checking the model. Often, the third stage suggests a reformulation of the model that leads to a repetition of the entire cycle and, one hopes, an improved model. In this section we discuss techniques that can be used to check the model.
+
+The extractor function residuals() returns raw residuals and has an optional argument to return other types, rstandard() returns standardized and rstudent() returns studentized residuals. Leverages can be obtained with hatvalues() and Cook's distances with cooks.distance(). We can put all of these diagnostics together in a data frame:
+
+```{r}
+ddf <- data.frame( resid(model3cg), rstandard(model3cg), rstudent(model3cg), hatvalues(model3cg), cooks.distance(model3cg)) 
+colnames(ddf)<- c("Res", "Std.Res", "JK.Res", "Hat.Values", "Cook.Distance")
+
+head(ddf)
+```
+
+Note that we didn't have to assign row names to the diagnostics data frame. This is because the extractor functions such as resid() include the names, and we made sure we specified the dataset when we fitted the model, ensuring we got the actual names rather than the default numbers.
+
+
+This is an illustration of the use of logical subcripts in R. The expression abs(ddf$rstandard) > 2 is a vector of booleans with one element per row, taking the value TRUE if the absolute residual exceeds 2 and FALSE otherwise. Using this vector as a subscript selects the rows for which it is TRUE. The vertical bar | is a logical or; the resulting expression is true when either condition is TRUE.
+
+```{r}
+ddf[abs(ddf$Std.Res) > 2 | abs(ddf$JK.Res)>2, ]
+```
+
+Next we will list the cases exceeding the maximum acceptable leverage, which is 2p/n in general:
+
+```{r}
+ddf[ ddf$Hat.Values > 2*4/20, ]
+```
+
+Let us list the six most influential countries. We will do this using the order() function, which finds the permutation needed to sort the data. I'll use minus the Cooks distance to sort in descending order and then display the first six rows
+
+```{r}
+i <- order(-ddf$Cook.Distance)[1:6]
+ddf[i,]
+```
+
+It turns out that the D.R., Cuba, and Ecuador are fairly influential observations. To investigate the exact
+nature of the D.R.'s influence, I fitted the model excluding this country. The main result is that the parameter representing the difference between moderate and weak programs is reduced from 4.14 to 1.89. Thus, a large part of the evidence pointing to a difference between moderate and weak programs comes from the D.R., which happens to be a country with substantial fertility decline and only moderate program effort. Note that the difference was not significant anyway, so no conclusions would be affected. 
+Note also that Haiti, which had high  leverage or potential influence, turned out to have no actual influence on the fit. Omitting this country would not alter the parameter estimates at all.
+
+
+### Section 6.7.1 - Residual Plots
+
+
+One of the most useful diagnostic tools available to the analyst is the residual plot, a simple scatterplot of the residuals versus the fitted values. Alternatively, one may plot the standardized residuals or the jack-knifed
+residuals versus the fitted values. In all three cases we expect basically a rectangular cloud with no discernible trend or pattern.
+
+Here is the plot of studentized (or jack-knifed) residuals versus fitted values:
+
+```{r}
+plot(fitted(model3cg), rstudent(model3cg), xlab="Fitted Values", ylab="Jack-knifed Residuals", main="Residuals Scatter Plot")
+text(fitted(model3cg)[6:8], rstudent(model3cg)[6:8],labels=c("Cuba", "D.R.", "Ecuador"), pos=2, cex=0.75)
+```
+
+Some of the symptoms that you should be alert for when inspecting residual plots include the following:
+
+
+* Any trend in the plot, such as a tendency for negative residuals at small fitted values and positive residuals at large fitted values. Such a trend would indicate non-linearities in the data. Possible remedies include transforming the response or introducing polynomial terms on the predictors.
+ 
+* Non-constant spread of the residuals, such as a tendency for more clustered residuals for small fitted values and more dispersed residuals for large fitted values. This type of symptom results in a cloud shaped like a megaphone, and indicates heteroscedasticity or non-constant variance. The usual remedy is a transformation of the response.
+
+### Section 6.7.2 - Q-Q Plots
+
+A second type of diagnostic aid is the probability plot, a graph of the residuals versus the expected order statistics of the standard normal distribution. This graph is also called a Q-Q Plot because it plots quantiles of the data versus quantiles of a distribution. The Q-Q plot may be constructed using raw, standardized or jack-knifed residuals. We will be using the latter.
+
+```{r}
+qqnorm(rstudent(model3cg), main="Q-Q Plot of Normality")
+abline(0,1)
+```
+
+The plot comes very close to a straight line, except possibly for the upper tail, where we find a couple of residuals somewhat larger than expected. In general, Q-Q plots showing curvature indicate skew distributions, with downward concavity corresponding to negative skewness (long tail to the left) and upward concavity indicating positive skewness. On the other hand, S-shaped Q-Q plots indicate heavy tails, or an excess of extreme values, relative to the normal distribution.
+
+Filliben (1975) has proposed a test of normality based on the linear correlation between the observed order statistics and the rankits and has published a table of critical values. The 5% points of the distribution of r for n = 10(10)100 are shown below. You would reject the hypothesis of normality if the correlation is less than the critical value. Note than to accept normality we require a very high correlation coefficient.
+
+n  10   20   30   40   50   60   70   80   90   100
+r .917 .950 .964 .972 .977 .980 .982 .984 .985 .987
+
+Lets calculate the Filliben's correlation coefficient for the standardized residuals using his approximation to the expected order statistics:
+
+
+```{r}
+n <- nrow(fpe)
+p <- (1:n-0.3175)/(n+0.365)
+p[1] <- 1-0.5^(1/n) # first 
+p[n] <- 0.5^(1/n)   # last
+qexp <- qnorm(p)
+qobs <- sort(rstandard(model3cg))
+cor(qobs,qexp)
+```
+
+Fortunately the Filliben correlation agrees with the value in the notes: 0.9655 for standardized residuals (or 0.9518 for studentized residuals), indicating no evidence of lack of normality.
+
+The plot() method for linear models also produces these plots. In fact it can produce six plots:
+
+
+* residuals against fitted values,
+* a scale-location plot of residuals against fitted values,
+* a normal Q-Q plot,
+* a plot of Cook's distances in the same order as the observations,
+* a plot of residuals against leverages, and
+* a plot of Cook's distances versus hat/(1-hat), where hat is the leverage or diagonal element of the hat matrix.
+
+
+```{r}
+par(mfrow=c(2,3))
+
+plot(model3cg, which=1)
+plot(model3cg, which=2)
+plot(model3cg, which=3)
+plot(model3cg, which=4)
+plot(model3cg, which=5)
+plot(model3cg, which=6)
+
+par(mfrow=c(1,1))
+```
+
+
+
+## Section 6.8 - Transformation
+
+We now consider what to do if the regression diagnostics discussed in the previous section indicate that the model is not adequate. The usual solutions involve transforming the response, transforming the predictors, or both.
+
+
+The response is often transformed to achieve linearity and homoscedasticity or constant variance. Examples of variance stabilizing transformations are the square root, which tends to work well for counts, and the arc-sine transformation, which is often appropriate when the response is a proportion. These two solutions have fallen out of fashion as generalized linear models designed specifically to deal with counts and proportions have increased in
+popularity. In these two cases, it is better to abandon the linear model in favor of better alternatives such as Poisson regression and logistic regression.
+
+Transformations to achieve linearity, or linearizing transformations, are still useful. The most popular of them is the logarithm, which is specially useful when one expects effects to be proportional to the response.
+
+A general problem with transformations is that the two aims of achieving linearity and constant variance may be in conflict. In generalized linear models the two aims are separated more clearly.
+
+
+### Section 6.8.1 - Box-Cox Transformation
+
+
+Box and Cox (1964) have proposed a family of transformations that can be used with non-negative responses and which includes as special cases all the transformations in common use, including reciprocals, logarithms and
+square roots.
+
+
+To avoid problems with negative values of the response variable, we add 1/2 to all observations:
+
+```{r}
+y <- change + 0.5
+```
+
+
+The MASS library has a handy boxcox function that computes and plots the profile log-likelihood for a range of possible transformations going from -2 to 2. The main argument to the function is a linear model fit. We'll try it with the analysis of covariance model that treats setting linearly and effort as a factor:
+
+```{r}
+require(MASS)
+bcm <- lm(y ~ setting + effort.g)
+bc <- boxcox(bcm)
+
+```
+
+As you can see from the graph, the optimal transformation has a parameter somewhat below 1, suggesting something like a square root transformation, but the profile log-likelihood is rather flat, and leaving the data untransformed does not lower the log-likelihood significantly.
+
+The boxcox function returns a list with x as the parameter and y as the corresponding log-likelihood. We can find the approximate mle as the x-value that yields the maximum: 0.67.
+
+```{r}
+bc$x[bc$y==max(bc$y)]
+```
+
+A large sample test for no transformation compares the log-likelihoods at one and at the maximum. Unfortunately 1 is not one of the generated x-values, but we can call the function with a single parameter value to just evaluate the log-likelihood:
+
+```{r}
+bc0 <- boxcox(bcm, lambda=1, plotit=F)
+(max(bc$y)-bc0$y)^2
+qchisq(0.95,1)
+```
+
+The chi-squared value of 3.32 is below the five-percent critical value (3.84), showing that we have no evidence against leaving the data in the original scale. To test for a log-transformation you could use the same technique with lambda=0, but it is clear from the plot that using logs would produce a substantially lower log-likelihood.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
