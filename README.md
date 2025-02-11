@@ -79,9 +79,6 @@ This is an educational repository maintained by Bangor Business School. If you'd
 2. Create a feature branch
 3. Submit a pull request
 
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## Acknowledgments
 - Bangor Business School
 - BizData Club Team
