@@ -41,6 +41,10 @@ new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 ```
 
+## Video Tutorials
+
+Please check out the video tutorials: at [BizData Tutorials](https://bangor.cloud.panopto.eu/Panopto/Pages/Sessions/List.aspx?folderID=c2b961cc-ecba-4c41-80df-b28100f7565f)
+
 ## Challenge 1: Understanding the Climate Crisis
 
 ### Overview
