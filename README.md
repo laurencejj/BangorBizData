@@ -7,6 +7,7 @@ Welcome to the BizData Club repository! This initiative is designed to help stud
 - `/tutorials` - R training materials covering:
   - Topic 1: Introduction to R
   - Topic 2: Data Visualization with ggplot2
+  - Bonus: Analysing Marvel Films
   - Topic 3: Data Access and Manipulation
   - Topic 4: Statistical Analysis
   - Topic 5: Data Tables
