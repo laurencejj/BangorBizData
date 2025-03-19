@@ -1,0 +1,259 @@
+---
+title: "Exploratory Data Analysis of Marvel Cinematic Universe films from 2008 - present"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+```{r,cache=TRUE,echo=FALSE,warning=FALSE,message=FALSE}
+knitr::opts_chunk$set(message=FALSE,warning=FALSE)
+```
+
+In this project, I scraped, cleaned, and transformed data of Marvel Cinematic Universe films from https://en.wikipedia.org/wiki/List_of_Marvel_Cinematic_Universe_films.
+
+Loading packages
+```{r message=FALSE}
+library(rvest)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(ggrepel)
+library(stringr)
+library(gridExtra)
+library(zoo)
+library(reshape2)
+```
+
+
+Scraping two tables from Wikipedia: Critical Response table and Box Office Performance table. Afterwards, I cleaned and merged them into a single data frame.
+```{r}
+movie_table <- read_html("https://en.wikipedia.org/wiki/List_of_Marvel_Cinematic_Universe_films")
+boxoff <- html_table(html_nodes(movie_table, "table")[[11]],fill=T)[c(-1,-2, -3,-10,-17,-29,-37,-43),c(-3,-4,-6,-7,-9)] 
+critical <- html_table(html_nodes(movie_table, "table")[[12]],fill=T)[-23,c(1,2,3)]
+colnames(critical)[2] = "Rotten.Tomatoes"
+colnames(critical)[3] = "Metacritic"
+merged <- merge(boxoff,critical,by.x="Film",by.y="Film")
+colnames(merged)[3] <- "Box.Office.Gross.Worldwide"
+colnames(merged)[2] <- "Year"
+colnames(merged)[2] <- "Year"
+colnames(merged) <- make.names(colnames(merged))
+merged
+```
+
+##### The data in the table is not ready for analysis because there are symbols (commas, dollar signs, spaces) and useless words. Now I will start by cleaning the data by keeping the columns: Box office gross worldwide, release year, Budget, Rotten Tomatoes scores, and Metacritic scores. Also, I will create a 'Profit' column in the table.
+
+
+Removing the days and months while keeping the year and converting to numeric values
+```{r}
+a=regexpr("[[:digit:]]{4}", merged$Year)
+merged$Year <- regmatches(merged$Year,a) %>% as.numeric() 
+```
+
+Removing the "$" and "," from the gross column and converting to numeric values
+```{r}
+merged$Box.Office.Gross.Worldwide <- gsub("(\\$|,)", "", merged$Box.Office.Gross.Worldwide) %>% as.numeric()
+```
+
+Removed symbols and converted the net budget to numeric values by multiplying by 1000000
+```{r}
+merged <- merged %>%
+  mutate(Budget = as.numeric(str_extract(Budget, "\\d+\\.?\\d*"))*1000000)
+```
+
+Removed symbols and only kept the scores as numeric values
+```{r}
+merged$Rotten.Tomatoes <- substr(merged$Rotten.Tomatoes,1,2) %>% as.numeric()
+```
+
+Removed symbols and only kept the scores as numeric values
+```{r}
+merged$`Metacritic` <- substr(merged$`Metacritic`,1,2) %>% as.numeric()
+```
+
+Adding new 'Profit' feature to the merged data frame
+```{r}
+merged <- mutate(merged, Profit=Box.Office.Gross.Worldwide-Budget)
+```
+
+Match the phase of the movie:
+```{r}
+# Create a mapping of films to their respective phases
+phase_mapping <- data.frame(
+  Film = c(
+    # Phase One
+    "Iron Man", "The Incredible Hulk", "Iron Man 2", "Thor", 
+    "Captain America: The First Avenger", "Marvel's The Avengers",
+    # Phase Two
+    "Iron Man 3", "Thor: The Dark World", "Captain America: The Winter Soldier",
+    "Guardians of the Galaxy", "Avengers: Age of Ultron", "Ant-Man",
+    # Phase Three
+    "Captain America: Civil War", "Doctor Strange", "Guardians of the Galaxy Vol. 2",
+    "Spider-Man: Homecoming", "Thor: Ragnarok", "Black Panther", 
+    "Avengers: Infinity War", "Ant-Man and the Wasp", "Captain Marvel", 
+    "Avengers: Endgame", "Spider-Man: Far From Home",
+    # Phase Four
+    "Black Widow", "Shang-Chi and the Legend of the Ten Rings", "Eternals",
+    "Spider-Man: No Way Home", "Doctor Strange in the Multiverse of Madness",
+    "Thor: Love and Thunder", "Black Panther: Wakanda Forever",
+    # Phase Five
+    "Ant-Man and the Wasp: Quantumania", "Guardians of the Galaxy Vol. 3",
+    "The Marvels", "Deadpool & Wolverine", "Captain America: Brave New World"
+  ),
+  Phase = c(
+    # Phase One
+    rep(1, 6),
+    # Phase Two
+    rep(2, 6),
+    # Phase Three
+    rep(3, 11),
+    # Phase Four
+    rep(4, 7),
+    # Phase Five
+    rep(5, 5)
+  )
+)
+
+# Add the Phase column to your merged dataframe
+merged <- merged %>%
+  left_join(phase_mapping, by = "Film")
+
+# If there are any films that didn't match, they'll have NA in the Phase column
+# You can check for those with:
+missing_phase <- merged %>% filter(is.na(Phase))
+if(nrow(missing_phase) > 0) {
+  print("The following films have no phase assigned:")
+  print(missing_phase$Film)
+}
+```
+
+Cleaned and merged table
+```{r}
+write.csv(merged, "CleanedMarvel.csv")
+merged
+```
+
+### Moving averages of Box Office Gross Worldwide and Budget over time
+The budget seems to be fairly constant throughout the years however gross has fallen slightly in 2015 - 2017 and begins increasing again in 2017 more at a higher rate than previous years
+```{r}
+ggplot(data=merged, aes(x=Year)) + 
+  geom_point(aes(y=Box.Office.Gross.Worldwide)) +
+  geom_smooth(method="loess", aes(y=Box.Office.Gross.Worldwide, colour="Gross_Loess")) +
+    geom_smooth(method="lm", se=F,aes(y=Box.Office.Gross.Worldwide, colour="Gross_Linear")) +
+  geom_point(data=merged,aes(y=Budget, colour="Budget_MovingAvg")) +
+  geom_line(data=merged,aes(y=rollapplyr(merged$Budget,width=10,FUN=mean,partial=T),colour="Budget_MovingAvg")) +
+  scale_x_continuous(breaks=c(2008:2019)) +
+  labs(title="Box Office Gross worldwide and Budget income over time for MCU movies") +
+  ylab(label="Dollars") 
+  #scale_colour_manual(name="", values=c(Gross_MovingAvg="#00BA38", Budget_MovingAvg="#F8766D", Gross_Loess="#619CFF")) 
+```
+
+### What is the distribution of Profit for Marvel movies? 
+The red dashed line represents the mean Profit and the black surve represents the density curve. Before taking the log of the Profit, the distribution appears to be positively skewed to the right. After the transformation, the distribution appears to be closer to a normal distribution.
+```{r}
+ggplot(data=merged, aes(x=Profit)) +
+  geom_density(color="black") +
+  geom_vline(xintercept = mean(merged$Profit), color = "red", linetype = "dashed") +
+  labs(title="Distribution of Profit for MCU movies") +
+  xlab(label="Profit in Dollars") +
+  ylab(label="Density")
+
+ggplot(data=merged, aes(x=log(Profit))) +
+  geom_density(color="black") +
+  geom_vline(xintercept = mean(log(merged$Profit)), color = "red", linetype = "dashed") +
+  labs(title="Distribution of log(Profit) for MCU movies") +
+  xlab(label="log(Profit) in Dollars") +
+  ylab(label="Density")
+```
+
+### Which years did MCU movies bring in the most Profit? 
+The graphs show that 2018 and 2019 MCU movies brought in the highest Profit income. However there were 2 MCU released in 2019 and 3 in 2018. A film released in 2019 generated significantly more Profit than movies from previous years. (Avengers: Endgame)
+```{r}
+merged %>%
+  group_by(Year) %>%
+  summarize(Total.Profit = sum(Profit)) %>%
+  mutate(Total.Profit_M = Total.Profit / 1000000) %>%
+  ggplot(aes(x = Year, y = Total.Profit_M)) + 
+  geom_bar(stat = "identity", fill = "#F8766D", position = "dodge") +
+  geom_text(aes(label = paste0(round(Total.Profit_M, 1), "M")), 
+            position = position_dodge(width = 0.1), 
+            size = 2.3, 
+            vjust = -.25) +
+  labs(title = "Total Profit vs Year of MCU movies") +
+  ylab(label = "Total Profit (millions USD)")
+
+ggplot(merged, aes(x=Film, y=Profit/1000000000)) + 
+  geom_bar(stat="identity") + facet_wrap(~Year) + 
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
+  labs(title="Profit of MCU movies ($b)") + ylab("Profit of MCU movies ($b)")
+```
+
+### Relationship of Budget and Gross Profit
+The linear regression model suggests that they have a positive relationship and the moving average and loess curve of budget is rising but starts dropping when Profit reaches ~$1.75 million. The summary of the simple linear regression with Budget as the predictor and Profit as the response shows that Budget is a a significant factor that influences the Profit positively. However since the sample size is small, it is not clear.  The residual plot is not very unsual, however there are a few outliers (4 and 3). The normal QQ plot shows that the residuals are approximately normally dsitributed.
+```{r, warning=F}
+ggplot(merged, aes(x=Budget/1000000000, y=Profit/1000000000)) +
+  geom_point(aes(color=as.factor(Phase))) +
+  geom_smooth(aes(colour="Loess"), method="loess", size=.6, se=F) +
+  geom_smooth(aes(colour="Linear Regression"), method="lm", se=F, size=.6) +
+  geom_text(aes(label=Film), size=2, vjust=1.5, check_overlap=TRUE) +
+  xlab(label="Budget ($b)") +
+  ylab(label="Profit ($b)") +
+  labs(title="Profit vs Budget for MCU movies")
+revfit <- lm(Profit ~ Budget,data=merged)
+summary(revfit)
+plot(revfit,1:2)
+```
+
+### Do Rotten Tomatoes and Metacritic agree? 
+They seem to have a positive relationship, however it is not proportional. Meta critic appears to give lower ratings than Rotten Tomatoes.
+```{r}
+ggplot(merged, aes(x=Metacritic, Rotten.Tomatoes)) +
+  geom_point( size=1) +
+  geom_text_repel(label=merged$Film, size=3) +
+  geom_line(colour="darkred", alpha=.6, method="loess", stat="smooth", size=1.3) +
+  labs(title="Metacritic ratings vs Rotten Tomatoes ratings of MCU Movies") +
+  ylab(label="Rotten Tomatoes scores") +
+  xlab(label="Metacritic scores")
+
+ggplot(merged) +
+  geom_bar(aes(x=reorder(Film, Rotten.Tomatoes), y=Rotten.Tomatoes, fill="Rotten Tomatoes"), stat="identity", alpha=1) +
+  geom_bar(aes(x=reorder(Film, Metacritic), y=Metacritic, fill="Metacritic"), stat="identity",alpha=1) +
+  coord_flip() +
+  scale_color_manual(values=c(a="red",b="blue")) +
+  scale_fill_discrete("") +
+  labs(title="Ratings of MCU movies") +
+  ylab("Rating") +
+  xlab("Movies")
+
+```
+
+### How have the ratings evolved over time?
+In general, Rotten Tomatoes reviewers appears to give more generous ratings than Metacritic reviewers. The graphs suggests that the ratings are increasing the but have fallen a bit since 2018.
+```{r}
+plot1 <- ggplot(merged, aes(x=Year, y=Metacritic)) + 
+  geom_point() +
+  geom_smooth(method="loess") +
+  scale_x_continuous(breaks=c(2008:2025)) +
+  theme(axis.text.x=element_text(angle = 60, hjust=1)) +
+  ylim(50,100) +
+  labs(title="Metacritic rating scores \n over time of MCU movies") +
+  ylab(label="Metacritic Scores")
+
+plot2 <- ggplot(merged, aes(x=Year, y=Rotten.Tomatoes)) + 
+  geom_point() +
+  geom_smooth(method="loess") +
+  scale_x_continuous(breaks=c(2008:2025)) +
+  ylim(50,100) +
+  theme(axis.text.x=element_text(angle = 60, hjust=1)) +
+  labs(title="Rotten Tomatoes rating scores \n over time of MCU movies") +
+  ylab(label="Rotten Tomatoes scores")
+
+grid.arrange(plot2, plot1, ncol=2)
+```
+
+### Conlusion
+1. Budget appears to be somewhat XXX
+2. Rotten tomatoes tends to give XXX ratings than Metacritic
+3. The highest by Rotten Tomatoes and Metacritic is XXX
+4. The movie that brought in the most Profit was XXX
+5. Is budget a significant predictor of Profit?
+
